@@ -16,3 +16,15 @@ module:
 	
 	- 32 weitere module fuer die einzelnen ftp befehle
 	     	-> kommunizieren entsprechend mit dem ftp_driver und setzen die befehle auf dem server um
+
+
+aufgabenverteilung:
+
+	- alex:
+		-> befehlsmodule (file i/o)
+	
+	- chris:
+		-> ftp_driver
+
+	- denis: 
+	   	-> authentifikation, main-loop 
