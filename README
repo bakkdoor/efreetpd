@@ -1,5 +1,6 @@
 eFreeTPd v0.1
-(C) 2009 Alex Reimchen, Christopher Bertels, Denis Meyer
+(C) 2009 Christopher Bertels, Denis Meyer, Alex Reimchen
 
-eFreeTPd is a free FTP daemon written in Erlang. It is licensed under the GNU GPL v3.
+eFreeTPd is a free FTP daemon written in Erlang.
+It is licensed under the GNU GPL v3.
 For more information take a look at the LICENSE file.
