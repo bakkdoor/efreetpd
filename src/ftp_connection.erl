@@ -4,7 +4,7 @@
 %% Also starts subprocesses for a given ftp command (e.g. uploading files, creating dirs etc.)
 %% if requested by ftp_driver process. 
 -module(ftp_connection).
--export([start/1]).
+-export([start/1, get_connection_pid/1]).
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
 
@@ -90,18 +90,27 @@ start_driver(PortNr, LoopPid) ->
     register(DriverName, FtpDriverPid).
 
 
-
 %% gets called as exit handler for crashing ftp_driver processes
-driver_receive_loop_exit_handler(ExitSignal) ->
-    case ExitSignal of
-	{'EXIT', Pid, Why} ->
-	    io:format("ftp_driver receive_loop (~p) crashed: ~p~n", [Pid, Why]),
-	    case Why of
-		{error, _Message, PortNr} ->
-		    io:format("~w crashed on port: ~p", ["\t\t",PortNr]),
-		    start_driver(PortNr, self());
-		Unknown ->
-		    io:format("~w unknown error: ~p", ["\t\t",Unknown])
-	    end
+driver_receive_loop_exit_handler(Pid, ExitReason) ->
+    io:format("ftp_driver receive_loop (~p) crashed: ~p~n", [Pid, ExitReason]),
+    
+    case ExitReason of
+	{error, Message, PortNr} ->
+	    io:format("~w crashed on port: ~p~nMessage: ~p~n", ["\t\t",PortNr, Message]),	    
+	    case get_connection_pid(PortNr) of
+		undefined ->
+		    io:format("error: ftp_connection process seems to be dead on port: ~p~n", [PortNr]),
+		    exit("something went very wront here.");
+		LoopPid ->
+		    start_driver(PortNr, LoopPid)
+	    end;
+	
+	Unknown ->
+	    io:format("~w unknown error: ~p", ["\t\t",Unknown])
     end.
-	    
+
+
+%% returns Pid for ftp_connection process tied to a given port.
+get_connection_pid(PortNr) ->
+    ProcName = utils:process_name(PortNr),
+    whereis(ProcName).
