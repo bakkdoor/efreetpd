@@ -1,10 +1,10 @@
 -module(ftp_driver).
--export([start/2]).
+-export([start/2, get_driver_pid/1]).
 
 start(PortNr, FtpConnectionPid) ->
     % socket oeffnen auf port PortNr
     % und loopen
-    ReceiveLoop = spawn(ftp_driver, receive_loop, [PortNr, FtpConnectionPid]),
+    _ReceiveLoop = spawn(ftp_driver, receive_loop, [PortNr, FtpConnectionPid]),
     SendLoop = spawn(ftp_driver, send_loop, [PortNr]),
     FtpConnectionPid ! {send_loop_pid, SendLoop}.
 
@@ -29,7 +29,7 @@ send_loop(PortNr) ->
 	    io:format("FTPDriver for connection on port ~w quitting.", [PortNr]);
 
 	Unknown ->
-	    io:format("unknown command received in ftp_driver: ~w", [Unkown]),
+	    io:format("unknown command received in ftp_driver: ~w", [Unknown]),
 	    send_loop(PortNr)
     end.
 
@@ -44,6 +44,11 @@ convert_command(Command, Parameters) ->
 
 
 
-to_ftp_packet({reply, {
+%to_ftp_packet({reply, {
 to_ftp_packet(UnknownMessage) ->
     io:format("error: don't know how to convert this message to ftp-packet: ~p~n", [UnknownMessage]).
+
+
+get_driver_pid(PortNr) ->
+    ProcName = utils:process_name("ftp_driver_", PortNr),
+    whereis(ProcName).
