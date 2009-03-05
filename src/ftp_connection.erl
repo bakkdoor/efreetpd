@@ -84,7 +84,7 @@ start_driver(PortNr, LoopPid) ->
     case whereis(DriverName) of
 	undefined ->
 	    nothing; % not registered yet, so simply do nothing
-	OldPid ->
+	_OldPid ->
 	    unregister(DriverName)
     end,
     register(DriverName, FtpDriverPid).
@@ -96,12 +96,12 @@ driver_receive_loop_exit_handler(ExitSignal) ->
     case ExitSignal of
 	{'EXIT', Pid, Why} ->
 	    io:format("ftp_driver receive_loop (~p) crashed: ~p~n", [Pid, Why]),
-	    case Why of ->
-		    {error, Message, PortNr} ->
-				io:format("~t~t crashed on port: ~p", [PortNr]),
-				start_driver(PortNr, self());
-			Unknown ->
-				io:format("~t~t unknown error: ~p", [Unknown])
-			end
+	    case Why of
+		{error, _Message, PortNr} ->
+		    io:format("~w crashed on port: ~p", ["\t\t",PortNr]),
+		    start_driver(PortNr, self());
+		Unknown ->
+		    io:format("~w unknown error: ~p", ["\t\t",Unknown])
+	    end
     end.
 	    
