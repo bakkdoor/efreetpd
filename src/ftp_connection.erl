@@ -11,11 +11,8 @@
 start(PortNr) ->
     % start loop & ftp_driver processes
     LoopPid = spawn(ftp_connection, receive_loop, []),
-    FtpDriverPid = spawn(ftp_driver, start, [PortNr, LoopPid]),
-    
-    % register processes (with PortNr as part of the name)
     register(utils:process_name(PortNr), LoopPid),
-    register(utils:process_name("ftp_driver_", PortNr), FtpDriverPid).
+    start_driver(PortNr, LoopPid).
 
 
 %% main loop, waiting for messages by the ftp_driver process.
@@ -75,3 +72,36 @@ send_loop(DriverSendLoop) ->
 % starts a new process for a given command.
 execute_command(Command, Parameters) ->
     spawn(Command, start, Parameters).
+
+
+start_driver(PortNr, LoopPid) ->
+    FtpDriverPid = spawn(ftp_driver, start, [PortNr, LoopPid]),
+    
+    % register processes (with PortNr as part of the name)
+    DriverName = utils:process_name("ftp_driver_", PortNr),
+    % if already registeres, unregister, then register again
+    % this could happen, if the ftp_driver has crashed and must be restarted.
+    case whereis(DriverName) of
+	undefined ->
+	    nothing; % not registered yet, so simply do nothing
+	OldPid ->
+	    unregister(DriverName)
+    end,
+    register(DriverName, FtpDriverPid).
+
+
+
+%% gets called as exit handler for crashing ftp_driver processes
+driver_receive_loop_exit_handler(ExitSignal) ->
+    case ExitSignal of
+	{'EXIT', Pid, Why} ->
+	    io:format("ftp_driver receive_loop (~p) crashed: ~p~n", [Pid, Why]),
+	    case Why of ->
+		    {error, Message, PortNr} ->
+				io:format("~t~t crashed on port: ~p", [PortNr]),
+				start_driver(PortNr, self());
+			Unknown ->
+				io:format("~t~t unknown error: ~p", [Unknown])
+			end
+    end.
+	    
