@@ -41,3 +41,9 @@ send_to_client(PortNr, FTPMessage) ->
 
 convert_command(Command, Parameters) ->
     true.
+
+
+
+to_ftp_packet({reply, {
+to_ftp_packet(UnknownMessage) ->
+    io:format("error: don't know how to convert this message to ftp-packet: ~p~n", [UnknownMessage]).
