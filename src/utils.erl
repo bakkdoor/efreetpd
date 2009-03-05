@@ -1,7 +1,7 @@
 %% Utilities module for eFreeTPd.
 %% Some helper functions etc.
 -module(utils).
--export([process_name/1, process_name/2, rpc/2]).
+-export([process_name/1, process_name/2, rpc/2, rpc/3, on_exit/2]).
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
 %% returns an atom for use as a process name
@@ -41,3 +41,15 @@ rpc(Pid, Request, Timeout) ->
 	    timeout
     end.
 			
+
+%% starts a system process that executes a function with a given exit reason (Fun(Pid,Reason))
+%% when a given process (Pid) dies.
+on_exit(Pid, Fun) ->
+    spawn(fun() ->
+		  process_flag(trap_exit, true),
+		  link(Pid),
+		  receive
+		      {'EXIT', Pid, Why} ->
+			  Fun(Pid, Why)
+		  end
+	  end).
