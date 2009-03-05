@@ -2,7 +2,7 @@
 %% Some helper functions etc.
 -module(utils).
 -export([process_name/1, process_name/2]).
-
+-author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
 %% returns an atom for use as a process name
 %% example: 

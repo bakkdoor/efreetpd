@@ -25,6 +25,9 @@ send_loop(PortNr) ->
 	    send_to_client(PortNr, Converted),
 	    send_loop(PortNr);
 	
+	{quit, PortNr} ->
+	    io:format("FTPDriver for connection on port ~w quitting.", [PortNr]);
+
 	Unknown ->
 	    io:format("unknown command received in ftp_driver: ~w", [Unkown]),
 	    send_loop(PortNr)
