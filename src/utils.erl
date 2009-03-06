@@ -1,8 +1,8 @@
 %% Utilities module for eFreeTPd.
 %% Some helper functions etc.
 -module(utils).
--export([process_name/1, process_name/2, rpc/2, rpc/3, on_exit/2]).
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
+-export([process_name/1, process_name/2, rpc/2, rpc/3, on_exit/2, keep_alive/2]).
 
 %% returns an atom for use as a process name
 %% example: 
@@ -53,3 +53,10 @@ on_exit(Pid, Fun) ->
 			  Fun(Pid, Why)
 		  end
 	  end).
+
+
+keep_alive(Name, Fun) ->
+    Pid = spawn(Fun),
+    register(Name, Pid),
+    on_exit(Pid, 
+	    fun(_Why) -> keep_alive(Name, Fun) end).
