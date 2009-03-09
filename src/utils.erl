@@ -2,7 +2,7 @@
 %% Some helper functions etc.
 -module(utils).
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
--export([process_name/1, process_name/2, rpc/2, rpc/3, on_exit/2, keep_alive/2]).
+-export([process_name/1, process_name/2, rpc/2, rpc/3, on_exit/2, keep_alive/2, get_dir_contents/1]).
 
 %% returns an atom for use as a process name
 %% example: 
@@ -60,3 +60,15 @@ keep_alive(Name, Fun) ->
     register(Name, Pid),
     on_exit(Pid, 
 	    fun(_Why) -> keep_alive(Name, Fun) end).
+
+
+
+		
+
+get_dir_contents(Dir) ->
+    case file:list_dir(Dir) of
+	{ok, Listing} ->
+	    Listing;
+	Error ->
+	    Error
+    end.

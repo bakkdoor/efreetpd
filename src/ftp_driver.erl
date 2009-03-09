@@ -6,7 +6,7 @@ start(PortNr, FtpConnectionPid) ->
     % und loopen
     _ReceiveLoop = spawn(ftp_driver, receive_loop, [PortNr, FtpConnectionPid]),
     SendLoop = spawn(ftp_driver, send_loop, [PortNr]),
-    FtpConnectionPid ! {send_loop_pid, SendLoop}.
+    FtpConnectionPid ! {send_loop_pid, SendLoop, PortNr}.
 
 receive_loop(PortNr, FtpConnectionPid) ->
     % FtpConnectionPid nachrichten senden mit empfangenen befehlen usw....

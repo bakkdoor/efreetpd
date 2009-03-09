@@ -25,8 +25,10 @@ receive_loop() ->
 	    io:format("connection closed on port: ~w~n", [PortNr]);
 
 	% ftp_driver has told us its send_loop process, so we start our own
-	{send_loop_pid, DriverSendLoop} ->
-	    spawn(ftp_connection, send_loop, [DriverSendLoop]);
+	{send_loop_pid, DriverSendLoop, PortNr} ->
+	    SendLoopPid = spawn(ftp_connection, send_loop, [DriverSendLoop]),
+	    put(send_loop_pid, SendLoopPid),
+	    receive_loop();
 
 	% command request to be executed
 	% start a subprocess to deal with the command
@@ -57,6 +59,16 @@ send_loop(DriverSendLoop) ->
 		    io:format("sending message to client: ~p~n", [Message]),
 		    DriverSendLoop ! Reply,
 		    send_loop(DriverSendLoop);
+
+		{dir_listing, Dir, Listing} ->
+		    io:format("listing directory contents of dir ~p: ~p~n", [Dir, Listing]),
+		    DriverSendLoop ! Reply,
+		    send_loop(DriverSendLoop);
+
+		{file_deleted, File} ->
+		    io:format("deleted file ~p~n", [File]),
+		    DriverSendLoop ! Reply,
+		    send_loop(DriverSendLoop);
 		
 	        UnknownReply ->
 		    io:format("error: unknown reply format: ~p~n", [UnknownReply]),
@@ -71,7 +83,9 @@ send_loop(DriverSendLoop) ->
 
 % starts a new process for a given command.
 execute_command(Command, Parameters) ->
-    spawn(Command, start, Parameters).
+    SendLoopPid = get(send_loop_pid),
+    ParamsWithPid =  [SendLoopPid | Parameters],
+    spawn(Command, start, ParamsWithPid).
 
 
 start_driver(PortNr, LoopPid) ->
