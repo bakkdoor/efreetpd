@@ -8,8 +8,13 @@ start(FtpConnPid, User, CurrentDir) ->
     ParentDir = get_parent_dir(User, CurrentDir),
     case user:check_dir(User, ParentDir) of
 	true ->
-	    DirContents = utils:get_dir_contents(ParentDir),
-	    FtpConnPid ! {reply, {dir_listing, ParentDir, DirContents}};
+	    case file:list_dir(ParentDir) of
+		{ok, Listing} ->
+		    FtpConnPid ! {reply, {dir_listing, ParentDir, Listing}};
+		{error, _Reason} ->
+		    io:format("error while listing directory ~p: ~p~n", [ParentDir, _Reason]),
+		    exit(FtpConnPid, {illegal_directory, ParentDir})
+	    end;
 	false ->
 	    exit(FtpConnPid, {illegal_directory, ParentDir})
     end.    
