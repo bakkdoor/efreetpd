@@ -1,5 +1,5 @@
 -module(user).
--export([home_dir/1, check_dir/2]).
+-export([home_dir/1, check_dir/2, check_file/2]).
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
 
