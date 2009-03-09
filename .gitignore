@@ -3,4 +3,5 @@ README~
 LICENSE~
 src/*.*~
 src/*.beam
+src/**/*.beam
 publish.sh
