@@ -1,5 +1,7 @@
 -module(user).
 -export([home_dir/1, check_dir/2]).
+-author({"Christopher Bertels", "bakkdoor@flasht.de"}).
+
 
 home_dir(UserName) ->
     config:root_dir() ++ "/" ++ UserName.

@@ -10,8 +10,8 @@ start(Max_Number_of_Ports) when integer(Max_Number_of_Ports), Max_Number_of_Port
 loop(Next_free_Port) when integer(Next_free_Port), Next_free_Port > 9999, Next_free_Port < 65001 ->
     receive
 	{login, Pid_From, Name, Password} ->
-	    {auth_status, pid, name} = authenticate:proove(Pid_From, Name, Password),
-	    case auth_status of
+	    {Auth_status, _Pid, _Name} = authenticate:proove(Pid_From, Name, Password),
+	    case Auth_status of
 		true ->
 		    spawn(ftp_connection, start, [Next_free_Port]),
 		    loop(Next_free_Port + 1);
