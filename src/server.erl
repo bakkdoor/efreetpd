@@ -3,11 +3,11 @@
 -author({"Denis Meyer", "calltopower88@web.de"}).
 
 % Starts the Server from Port Port_Number
-start(Port_Number) ->
-    spawn(server, loop, [Port_Number]).
+start(Max_Number_of_Ports) when integer(Max_Number_of_Ports), Max_Number_of_Ports > 9999, Max_Number_of_Ports < 65001 ->
+    spawn(server, loop, [Max_Number_of_Ports]).
 
 % Prooves user-name and password and connects to a new port if login successfull
-loop(Next_free_Port) ->
+loop(Next_free_Port) when integer(Next_free_Port), Next_free_Port > 9999, Next_free_Port < 65001 ->
     receive
 	{login, Pid_From, Name, Password} ->
 	    {auth_status, pid, name} = authenticate:proove(Pid_From, Name, Password),
@@ -20,8 +20,3 @@ loop(Next_free_Port) ->
 		    loop(Next_free_Port)
 	    end
     end.
-
-% TODO
-% Exception-Handling
-% Later:
-% Stop Server, Free Ports
