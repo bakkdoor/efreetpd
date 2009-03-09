@@ -1,17 +1,16 @@
 -module(server).
--export([start/0]).
+-export([start/1]).
 -import(authenticate, [start/1, proove/2]).
 -author({"Denis Meyer", "calltopower88@web.de"}).
 
-% Starts the Server
-start() ->
-    spawn(main_loop, loop, [10000]).
+% Starts the Server from Port Port_Number
+start(Port_Number) ->
+    spawn(server, loop, [Port_Number]).
 
+% Stops the Server: not needed by now = Ports lost
 stop() ->
     % TODO
     ok.
-
-    
 
 % Waits for Request from Client
 loop(Next_free_Port) ->
@@ -23,7 +22,8 @@ loop(Next_free_Port) ->
 		    % TODO
 		    % Portzuweisung + Prozessstart am zugewiesenen Port
 		    loop(Next_free_Port + 1);
-		_Other ->
+		Error ->
+		    io:format("Not connected! Reason: ~w", Error),
 		    loop(Next_free_Port)
 	    end
     end.
