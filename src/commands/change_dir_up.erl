@@ -25,7 +25,7 @@ get_parent_dir(User, Dir) ->
     case Dir of
 	HomeDir ->
 	    HomeDir;
-	_ ->
+	_Other ->
 	    case file:set_cwd(Dir) of
 		ok ->
 		    file:set_cwd(".."),
@@ -35,7 +35,7 @@ get_parent_dir(User, Dir) ->
 			{error, _Reason} -> 
 			    Dir
 		    end;
-		{error, _} ->
+		{error, _Reason} ->
 		    HomeDir
 	    end
     end.

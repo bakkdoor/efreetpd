@@ -1,0 +1,23 @@
+_T_O_D_O_-_L_I_S_T
+------------------
+
+
+
+_D_e_n_i_s_
+-----------
+- server.erl
+	- exception-handling (if neccessary)
+	- looking for connections on port 21
+- authenticate/authenticate.erl
+	- everything ;)
+- maybe other important stuff
+
+
+
+_C_h_r_i_s_
+-----------
+
+
+
+_A_l_e_x_
+---------
