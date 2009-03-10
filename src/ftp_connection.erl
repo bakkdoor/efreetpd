@@ -22,7 +22,7 @@ receive_loop() ->
     receive
 	% the ftp_driver has closed the connection to the client on this port.
 	{quit, PortNr} ->
-	    io:format("connection closed on port: ~w~n", [PortNr]);
+	    debug:info("connection closed on port: ~w~n", [PortNr]);
 
 	% ftp_driver has told us its send_loop process, so we start our own
 	{send_loop_pid, DriverSendLoop, PortNr} ->
@@ -38,7 +38,7 @@ receive_loop() ->
 	
 	% any other messages, we simply output and keep on going...
 	Unknown ->
-	    io:format("unknown command: ~w~n", [Unknown]),
+	    debug:info("unknown command: ~w~n", [Unknown]),
 	    receive_loop()
     end.
 
@@ -51,32 +51,32 @@ send_loop(DriverSendLoop) ->
 	{reply, Reply} ->
 	    case Reply of
 		{data_stream, _} ->
-		    io:format("sending data to client..."), % just for debugging...
+		    debug:info("sending data to client..."), % just for debugging...
 		    DriverSendLoop ! Reply,
 		    send_loop(DriverSendLoop);
 		
 		{message, Message} ->
-		    io:format("sending message to client: ~p~n", [Message]),
+		    debug:info("sending message to client: ~p~n", [Message]),
 		    DriverSendLoop ! Reply,
 		    send_loop(DriverSendLoop);
 
 		{dir_listing, Dir, Listing} ->
-		    io:format("listing directory contents of dir ~p: ~p~n", [Dir, Listing]),
+		    debug:info("listing directory contents of dir ~p: ~p~n", [Dir, Listing]),
 		    DriverSendLoop ! Reply,
 		    send_loop(DriverSendLoop);
 
 		{file_deleted, File} ->
-		    io:format("deleted file ~p~n", [File]),
+		    debug:info("deleted file ~p~n", [File]),
 		    DriverSendLoop ! Reply,
 		    send_loop(DriverSendLoop);
 		
 	        UnknownReply ->
-		    io:format("error: unknown reply format: ~p~n", [UnknownReply]),
+		    debug:info("error: unknown reply format: ~p~n", [UnknownReply]),
 		    send_loop(DriverSendLoop)
 	    end;
 	
 	Unknown ->
-	    io:format("error: unkown message in send_loop (# ~p): ~p~n", [self(), Unknown]),
+	    debug:info("error: unkown message in send_loop (# ~p): ~p~n", [self(), Unknown]),
 	    send_loop(DriverSendLoop)
     end.
 
@@ -106,11 +106,11 @@ start_driver(PortNr, LoopPid) ->
 
 %% gets called as exit handler for crashing ftp_driver processes
 driver_receive_loop_exit_handler(Pid, ExitReason) ->
-    io:format("ftp_driver receive_loop (~p) crashed: ~p~n", [Pid, ExitReason]),
+    debug:error("ftp_driver receive_loop (~p) crashed: ~p~n", [Pid, ExitReason]),
     
     case ExitReason of
 	{error, Message, PortNr} ->
-	    io:format("~w crashed on port: ~p~nMessage: ~p~n", ["\t\t",PortNr, Message]),	    
+	    debug:error("~w crashed on port: ~p~nMessage: ~p~n", ["\t\t",PortNr, Message]),	    
 	    case get_connection_pid(PortNr) of
 		undefined ->
 		    io:format("error: ftp_connection process seems to be dead on port: ~p~n", [PortNr]),
@@ -120,7 +120,8 @@ driver_receive_loop_exit_handler(Pid, ExitReason) ->
 	    end;
 	
 	Unknown ->
-	    io:format("~w unknown error: ~p", ["\t\t",Unknown])
+	    debug:error
+	      ("~w unknown error: ~p", ["\t\t",Unknown])
     end.
 
 

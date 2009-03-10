@@ -26,10 +26,10 @@ send_loop(PortNr) ->
 	    send_loop(PortNr);
 	
 	{quit, PortNr} ->
-	    io:format("FTPDriver for connection on port ~w quitting.", [PortNr]);
+	    debug:info("FTPDriver for connection on port ~w quitting.", [PortNr]);
 
 	Unknown ->
-	    io:format("unknown command received in ftp_driver: ~w", [Unknown]),
+	    debug:info("unknown command received in ftp_driver: ~w", [Unknown]),
 	    send_loop(PortNr)
     end.
 
@@ -46,7 +46,7 @@ convert_command(Command, Parameters) ->
 
 %to_ftp_packet({reply, {
 to_ftp_packet(UnknownMessage) ->
-    io:format("error: don't know how to convert this message to ftp-packet: ~p~n", [UnknownMessage]).
+    debug:error("don't know how to convert this message to ftp-packet: ~p~n", [UnknownMessage]).
 
 
 get_driver_pid(PortNr) ->

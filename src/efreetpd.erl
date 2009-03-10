@@ -9,14 +9,14 @@ start() ->
     %% read config from configfile
     Settings = config:read("eFreeTPd.conf"),
     StartPort = config:setting(Settings, start_port),
-    io:format(">> starting eFreeTPd with StartPort ~p~n", [StartPort]),
-    io:format(">> all settings: ~p", [Settings]),
+    debug:info("starting eFreeTPd with StartPort ~p", [StartPort]),
+    debug:info("all settings: ~p", [Settings]),
     MainPid = server:start(StartPort),
     
     % error-handler for main process
     utils:on_exit(MainPid, 
-		  fun(Why) ->
-			  io:format(">>> main process stopped: ~p~n", [Why]),
-			  io:format(">>> trying to restart main process...~n"),
+		  fun(_Pid, Why) ->
+			  debug:error("main process stopped: ~p", [Why]),
+			  debug:error("trying to restart main process...~n"),
 			  efreetpd:start()
 		  end).
