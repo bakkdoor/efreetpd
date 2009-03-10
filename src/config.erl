@@ -18,9 +18,9 @@ read(_Filename) ->
      % root directory, in which all user-directories lie.
      {root_dir, "/home/bakkdoor/projekte/erlang/eFreeTPd/root_dir"},
      % users list, first part is username (as string), second is a sha encrypted binary password,
-     % represented as list of 8-bit integers via: erlang:binary_to_list(crypto:sha(PasswortString)).
-     {users, [{"user1", [28,255,250,42,225,101,40,227,97,21,236,232,177,242,96,27,207,116,65,78]},
-	      {"user2", [42,166,10,143,247,252,212,115,211,33,224,20,106,253,158,38,223,57,81,71]}]},
+     % represented as string of 8-bit hexadecimal integers via: utils:encrypted_password_string(PasswortString).
+     {users, [{"user1", "1CFFFA2AE16528E36115ECE8B1F2601BCF74414E"},
+	      {"user2", "2AA6A8FF7FCD473D321E0146AFD9E26DF395147"}]},
      {start_port, 10000}
     ].
 
