@@ -7,7 +7,7 @@
 %% and starts the eFreeTPd server daemon.
 start() ->
     %% read config from configfile
-    Settings = config:read_config("eFreeTPd.conf"),
+    Settings = config:read("eFreeTPd.conf"),
     StartPort = config:setting(Settings, start_port),
     io:format(">> starting eFreeTPd with StartPort ~p~n", [StartPort]),
     io:format(">> all settings: ~p", [Settings]),
