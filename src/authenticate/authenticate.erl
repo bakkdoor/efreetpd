@@ -9,6 +9,6 @@ proove(Pid, Name, Password) ->
     Pid ! {true, Pid, Name}.    % Nur zu Testzwecken: Alles authentifizieren (true)
 
 % TODO
-% Comparison Name & Password with Database
+% Comparison Name & Password with Database/Table of Name and Passwords
 % Later:
-% Encryption/Decryption
+% Encryption/Decryption of the (Name and) Password

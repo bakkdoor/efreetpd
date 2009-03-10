@@ -20,4 +20,3 @@ check_dir(UserName, Dir) ->
 check_file(UserName, File) ->
     Dirname = filename:dirname(File),
     user:check_dir(Dirname).
-    
