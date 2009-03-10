@@ -1,5 +1,5 @@
 -module(server).
--export([start/1]).
+-export([start/1, loop/1]).
 -author({"Denis Meyer", "calltopower88@web.de"}).
 
 % Starts the Server from Port Port_Number
