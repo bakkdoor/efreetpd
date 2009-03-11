@@ -3,6 +3,7 @@
 -module(utils).
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 -export([process_name/1, process_name/2, rpc/2, rpc/3, on_exit/2, keep_alive/2, encrypted_password_string/1]).
+-export([write_file/2, read_file/1]).
 
 %% returns an atom for use as a process name
 %% example: 
@@ -73,3 +74,15 @@ encrypted_password_string(PasswordString) ->
     end,
     CryptedPasswd = erlang:binary_to_list(crypto:sha(PasswordString)),
     lists:flatten(lists:map(fun(X) -> io_lib:format("~.16B", [X]) end, CryptedPasswd)).
+
+
+%% writes a binary to a given filename.
+write_file(Filename, Bin) ->
+    {ok, File} = file:open(Filename, [write, binary]),
+    file:write(File, Bin),
+    file:close(File).
+
+%% reads the binary from a given filename.
+read_file(Filename) ->
+    {ok, Binary} = file:read_file(Filename),
+    Binary.
