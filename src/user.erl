@@ -4,12 +4,16 @@
 
 
 %% returns the home directory of a given user.
+-spec home_dir(string()) -> string().
+
 home_dir(UserName) ->
     config:root_dir() ++ "/" ++ UserName.
 
 
 %% checks, if a given folder/directory belongs to a given user.
 %% returns true or false, indicating the ownership.
+-spec check_dir(string(), string()) -> true | false.
+
 check_dir(UserName, Dir) ->
     UserHomeDir = home_dir(UserName),
     case string:str(Dir, UserHomeDir) of
@@ -22,6 +26,8 @@ check_dir(UserName, Dir) ->
 
 %% checks, if a given file belongs to a given user.
 %% returns true or false, indicating the ownership.
+-spec check_file(string(), string()) -> true | false | {error, string() | atom()}.
+
 check_file(UserName, File) ->
     Dirname = filename:dirname(File),
-    check_dir(Dirname).
+    check_dir(UserName, Dirname).

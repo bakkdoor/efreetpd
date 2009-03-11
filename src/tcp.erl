@@ -4,8 +4,13 @@
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
 
+-spec receive_binary(port()) -> {ok, binary()} | {error, string() | atom()}.
+
 receive_binary(Socket) ->
     receive_binary(Socket, []).
+
+
+-spec receive_binary(port(), list()) -> {ok, binary()} | {error, string() | atom()}.
 
 receive_binary(Socket, BinAcc) ->
     case gen_tcp:recv(Socket, 0) of

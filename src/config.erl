@@ -3,14 +3,23 @@
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
 %% specifies the root dir, in which all user directories are
+-spec root_dir() -> string().
+    
 root_dir() ->
     "/home/bakkdoor/projekte/erlang/eFreeTPd/root_dir".
+
+
+-spec std_config_file() -> string().
 
 std_config_file() ->
     "eFreeTPd.conf".
 
+
+
 % TODO
 % Functions for reading setting(s) from a config file
+-spec read(string()) -> [{atom(), _Value}].
+
 read(_Filename) ->
     %% read settings and return them as list of tuples (key-value pairs)
     %% for now, simply return the values statically...
@@ -26,6 +35,9 @@ read(_Filename) ->
 
 %% returns a specified setting-value (RequestedSetting)
 %% from a list of settings (ConfigSettings)
+-spec setting(list(), atom()) -> 
+    string() | non_neg_integer() | atom() | list().
+
 setting(ConfigSettings, RequestedSetting) ->
     Filtered = lists:filter(fun ({Key, _Val}) -> Key =:= RequestedSetting end,
 			    ConfigSettings),
@@ -45,6 +57,8 @@ setting(ConfigSettings, RequestedSetting) ->
 %% when first called, it saves the settings in the current processe's dictionary (via put)
 %% in any subsequent calls to this function from the same process, it simply gets the settings
 %% from the processe's dictionary (via get). the name of the key within the dictionary is: config_settings
+-spec setting(atom()) -> string() | non_neg_integer() | atom().
+
 setting(RequestedSetting) ->
     case get(config_settings) of
 	undefined ->
