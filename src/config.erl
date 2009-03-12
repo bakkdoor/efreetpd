@@ -35,8 +35,7 @@ read(_Filename) ->
 
 %% returns a specified setting-value (RequestedSetting)
 %% from a list of settings (ConfigSettings)
--spec setting(list(), atom()) -> 
-    string() | non_neg_integer() | atom() | list().
+-spec setting(list(), atom()) -> string() | non_neg_integer() | atom() | list().
 
 setting(ConfigSettings, RequestedSetting) ->
     Filtered = lists:filter(fun ({Key, _Val}) -> Key =:= RequestedSetting end,
