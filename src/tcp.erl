@@ -15,7 +15,7 @@ receive_binary(Socket) ->
 receive_binary(Socket, BinAcc) ->
     case gen_tcp:recv(Socket, 0) of
 	{ok, B} ->
-	    receive_binary(Socket, [BinAcc, B]);
+	    receive_binary(Socket, [B|BinAcc]);
 	{error, closed} ->
-	    {ok, list_to_binary(BinAcc)}
+	    {ok, list_to_binary(lists:reverse(BinAcc))}
     end.
