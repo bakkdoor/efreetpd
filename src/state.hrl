@@ -7,6 +7,7 @@
 	  user,
 	  password,
 	  port,
+	  ip,
 	  data_port,
 	  transfer_type,
 	  transfer_mode

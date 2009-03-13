@@ -9,9 +9,10 @@ start() ->
     %% read config from configfile
     Settings = config:read("eFreeTPd.conf"),
     StartPort = config:setting(Settings, start_port),
+    ListenPort = config:setting(Settings, main_listen_port),
     debug:info("starting eFreeTPd with StartPort ~p", [StartPort]),
     debug:info("all settings: ~p", [Settings]),
-    MainPid = server:start(StartPort),
+    MainPid = server:start(ListenPort, StartPort),
     
     % error-handler for main process
     utils:on_exit(MainPid, 
