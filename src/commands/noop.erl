@@ -1,4 +1,4 @@
 -module(noop).
 -export([start/0]).
 
-start() -> io:format("No Operation! ~n").
+start(FTPConnPid, State) -> io:format("No Operation! ~n").

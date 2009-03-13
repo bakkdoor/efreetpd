@@ -1,7 +1,7 @@
--module(changeWorkDir).
+-module(change_work_dir).
 -export([start/3]).
 
-start(FtpConnPid, User, NewDir) -> 
+start(FtpConnPid, #state{user = User, current_dir = CurrentDir}, NewDir) -> 
     case user:check_dir(User, NewDir) of
 	true ->
 	    case file:list_dir(NewDir) of

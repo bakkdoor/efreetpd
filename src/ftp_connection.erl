@@ -5,6 +5,7 @@
 %% if requested by ftp_driver process. 
 -module(ftp_connection).
 -export([start/1, get_connection_pid/1]).
+-include("state.hrl").
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
 
@@ -17,7 +18,7 @@ start(PortNr) ->
 
 %% main loop, waiting for messages by the ftp_driver process.
 %% if a command request comes in, we start a subprocess for the requested command.
-receive_loop() ->
+receive_loop(State) ->
     % loop as long as connection is alive
     receive
 	% the ftp_driver has closed the connection to the client on this port.
@@ -28,18 +29,21 @@ receive_loop() ->
 	{send_loop_pid, DriverSendLoop, PortNr} ->
 	    SendLoopPid = spawn(ftp_connection, send_loop, [DriverSendLoop]),
 	    put(send_loop_pid, SendLoopPid),
-	    receive_loop();
+	    receive_loop(State);
 
 	% command request to be executed
 	% start a subprocess to deal with the command
 	{command, Command, Parameters} ->
-	    execute_command(Command, Parameters),
-	    receive_loop();
+	    execute_command(Command, Parameters, State),
+	    receive_loop(State);
+
+	{state_change, NewState} ->
+	    receive_loop(NewState);
 	
 	% any other messages, we simply output and keep on going...
 	Unknown ->
 	    debug:info("unknown command: ~w~n", [Unknown]),
-	    receive_loop()
+	    receive_loop(State)
     end.
 
 
@@ -82,9 +86,9 @@ send_loop(DriverSendLoop) ->
 
 
 % starts a new process for a given command.
-execute_command(Command, Parameters) ->
+execute_command(Command, Parameters, State) ->
     SendLoopPid = get(send_loop_pid),
-    ParamsWithPid =  [SendLoopPid | Parameters],
+    ParamsWithPid =  [SendLoopPid, State | ParamsWithState],
     spawn(Command, start, ParamsWithPid).
 
 

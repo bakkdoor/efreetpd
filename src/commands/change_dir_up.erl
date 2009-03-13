@@ -1,8 +1,9 @@
--module(changeDirUp).
--export([start/3, get_parent_dir/2]).
+-module(change_dir_up).
+-export([start/2, get_parent_dir/2]).
+-include("../state.hrl").
 %ueberprüfen: userverzeichnis oder nicht (zusaetzliche Parameter!)
 
-start(FtpConnPid, User, CurrentDir) -> 
+start(FtpConnPid, _State = #state{current_dir = CurrentDir, user = User}) -> 
     % vom aktuellen verzeichnis das höhere nehmen
     % und liste der dateien zurücksenden
     ParentDir = get_parent_dir(User, CurrentDir),

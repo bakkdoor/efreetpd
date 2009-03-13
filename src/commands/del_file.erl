@@ -1,7 +1,8 @@
--module(delFile).
+-module(del_file).
 -export([start/3]).
+-include("../state.hrl").
 
-start(FtpConnPid, User, File) -> 
+start(FtpConnPid, _State = #state{current_dir = _CurrentDir, user= User}, File) -> 
     case user:check_file(User, File) of
 	true ->
 	    file:delete(File),
