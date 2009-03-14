@@ -7,11 +7,13 @@
 	  current_dir,
 	  user,
 	  password,
+	  status,
 	  port,
 	  ip,
 	  data_port,
 	  transfer_type,
-	  transfer_mode
+	  transfer_mode,
+	  listen_socket = undefined
 	 }).
 	  
 	  
