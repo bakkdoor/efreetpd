@@ -78,6 +78,7 @@ keep_alive(Name, Fun) ->
 
 -spec encrypted_password_string(string()) -> string().
 
+%% this is currently not working somehow..
 encrypted_password_string(PasswordString) ->
     Started = get(crypto_module_started),
     case Started of
@@ -88,7 +89,7 @@ encrypted_password_string(PasswordString) ->
 	    put(crypto_module_started, true)
     end,
     CryptedPasswd = erlang:binary_to_list(crypto:sha(PasswordString)),
-    lists:flatten(lists:map(fun(X) -> io_lib:format("~.16B", [X]) end, CryptedPasswd)).
+   lists:flatten(lists:map(fun(X) -> io_lib:format("~.16B", [X]) end, CryptedPasswd)).
 
 
 %% writes a binary to a given filename.

@@ -23,7 +23,9 @@
 %% 	    end
 %%     end.
 
+% network line terminator (terminates/seperates a ftp message from another).
 -define(CRNL, "\r\n").
+% okay status flag.
 -define(R_OKAY, 200).
 
 stop() ->
@@ -49,16 +51,6 @@ accept_loop(LSocket) ->
     acknowledge(NewSocket).
     
 
-loop(Socket) ->
-    {ok, {IP, Port}} = inet:peername(Socket),
-    receive
-	{tcp, Socket, Bin} ->
-	    debug:info("!! received binary packet: ~p (# ~p:~p)", [binary_to_list(Bin), IP, Port]),
-	    loop(Socket);
-	{tcp_closed, Socket} ->
-	    debug:info("!! connection closed on socket ~p (# ~p:~p)", [Socket, IP, Port])
-    end.
-
 %% ctl_loop_init(Ctl, Root, DefaultDataPort) ->
 %%     {ok,Name} = inet:gethostname(),
 %%     rsend(Ctl,220, Name ++ " Erlang Ftp server 1.0 ready."),
@@ -66,11 +58,18 @@ loop(Socket) ->
 %% 			    data_port = DefaultDataPort,
 %% 			    def_data_port = DefaultDataPort }, []).
 
-rsend(S, Code, Mesg) when is_integer(Code) ->
-    gen_tcp:send(S, [integer_to_list(Code)," ",Mesg, ?CRNL]).
+
+%% sends a message (network-line-terminated status code and a message)
+%% to the client (via Socket).
+rsend(Socket, Code, Message) when is_integer(Code) ->
+    gen_tcp:send(Socket, [integer_to_list(Code)," ",Message, ?CRNL]).
+
+%% Send a sinlge line standard message
+rsend(Socket, Code) ->
+    gen_tcp:send(Socket, [ftp_driver:reply_string(Code)++ ?CRNL]).
 
 
-
+% send acknowledge packet to client.
 acknowledge(Socket) ->
     {ok, Hostname} = inet:gethostname(),
     {ok, {IP, Port}} = inet:peername(Socket),
@@ -82,20 +81,68 @@ acknowledge(Socket) ->
 		   []). % empty buffer
 
 
-connection_loop(Socket, State, Buf) ->
+connection_loop(Socket, State = #state{ip = IP, port = Port}, Buf) ->
     debug:info("in connection loop..."),
+    debug:info("current state: ~p", [State]),
     case get_request(Socket, Buf) of
 	{ok, Request, Buf1} ->
 	    case parse_request(Request) of
-		{Fun, Args} ->
-		    debug:info("got request: ~p with params ~p", [Fun, Args]);
+		{Command, Args} ->
+		    debug:info("got request: ~p with params ~p", [Command, Args]),
+		    % call handler-function for request:
+		    %spawn(?MODULE, Command, [Args, Socket, State]),
+		    case catch apply(?MODULE, Command, [Args, Socket, State]) of
+			failed -> connection_loop(Socket, State, Buf1);
+			quit -> true;
+			St1 when is_record(St1, state) ->
+			    connection_loop(Socket, St1, Buf1)
+		    end;
+		    %connection_loop(Socket, State, Buf1);
 		error ->
 		    rsend(Socket, 500, "syntax error: " ++ Request),
 		    connection_loop(Socket, State, Buf1)
 	    end;
 	{error, closed} ->
+	    debug:info("!! connection to ~p closed on port ~p:", [IP, Port]),
 	    true
     end.
+
+user_name(Name, Socket, St) ->
+    Code = ftp_driver:reply_code(user_name_ok),
+    rsend(Socket, Code),
+    Homedir = config:setting(root_dir) ++ "/" ++ Name, 
+    St#state { user = Name, 
+	       home_dir = Homedir,
+	       current_dir = Homedir }.
+
+password(Password, Socket, St) ->
+    verify_login(Socket, St#state{password = Password}),
+    %% check that we have executed user and need a password
+    %% then that the password is valid
+    Code = ftp_driver:reply_code(user_logged_in),
+    rsend(Socket, Code, "User " ++ St#state.user ++ " logged in, proceed"),
+    St#state { password = Password }.
+
+verify_login(Socket, #state{user = User, password = Password}) ->
+%%    EncryptedPassword = utils:encrypted_password_string(Password),
+    Users = config:setting(users),
+    case lists:member({User, Password}, Users) of
+	true -> 
+	    debug:info("user is correct: ~p - ~p", [User, Password]),
+	    true;
+	false -> 
+	    debug:info("user is not correct: ~p - ~p", [User, Password]),
+	    rsend(Socket, ftp_driver:reply_code(not_logged_in)), throw(failed)
+    end.
+
+get_system_type(Args, Socket, State) ->
+    cmd_not_implemented(Args, Socket, State).
+
+%% command not implemented
+cmd_not_implemented(_, Socket, State) ->
+    rsend(Socket, 502),    
+    State.
+
 
 %% ctl_loop(Ctl, St, Buf) ->
 %%     case ctl_line(Ctl,Buf) of
@@ -128,7 +175,7 @@ connection_loop(Socket, State, Buf) ->
 %% must be case insensitive on commands and type letters but
 %% sensitive on path/user 
 %% 
-parse_request(Input = [L1,L2,L3 | T]) ->
+parse_request([L1,L2,L3 | T]) ->
     C1 = alpha(L1),
     C2 = alpha(L2),
     C3 = alpha(L3),
@@ -180,3 +227,4 @@ split_line([X|Cs], Buf) ->
     split_line(Cs, [X|Buf]);
 split_line([], _) ->
     more.
+

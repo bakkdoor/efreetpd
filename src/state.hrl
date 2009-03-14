@@ -3,6 +3,7 @@
 
 -record(state, 
 	{
+	  home_dir,
 	  current_dir,
 	  user,
 	  password,

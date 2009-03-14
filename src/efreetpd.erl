@@ -1,11 +1,12 @@
 -module(efreetpd).
--export([start/0]).
+-export([start/0, stop/0]).
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
 %% 'main'-module.
 %% contains the start function, which reads config-settings from config-file 
 %% and starts the eFreeTPd server daemon.
 start() ->
+    crypto:start(),
     %% read config from configfile
     Settings = config:read("eFreeTPd.conf"),
     StartPort = config:setting(Settings, start_port),
@@ -21,3 +22,6 @@ start() ->
 			  debug:error("trying to restart main process...~n"),
 			  efreetpd:start()
 		  end).
+
+stop() ->
+    server:stop().
