@@ -26,10 +26,19 @@
 -define(CRNL, "\r\n").
 -define(R_OKAY, 200).
 
+stop() ->
+    server ! stop.
+
 start(ListenPort, _Next_free_Port) ->
-    {ok, LSocket} = gen_tcp:listen(ListenPort, [binary, {active, true}, {packet, 0}]),
+    {ok, LSocket} = gen_tcp:listen(ListenPort, [binary, {active, false}, {packet, 0}]),
     debug:info("server startet on port ~p", [ListenPort]),
-    spawn(fun() -> accept_loop(LSocket) end).
+    spawn(fun() -> accept_loop(LSocket) end),
+    register(server, spawn(fun() ->
+				   receive
+				       stop ->
+					   gen_tcp:close(LSocket)
+				   end
+			   end)).
     
 				   
 accept_loop(LSocket) ->				   
@@ -119,21 +128,21 @@ connection_loop(Socket, State, Buf) ->
 %% must be case insensitive on commands and type letters but
 %% sensitive on path/user 
 %% 
-parse_request([L1,L2,L3 | T]) ->
+parse_request(Input = [L1,L2,L3 | T]) ->
     C1 = alpha(L1),
     C2 = alpha(L2),
     C3 = alpha(L3),
     case T of
-	[] -> parse_request(list_to_atom([C1,C2,C3]), []);
-	[$ | Arg] -> parse_request(list_to_atom([C1,C2,C3]),Arg);
-	[C4] -> parse_request(list_to_atom([C1,C2,C3,alpha(C4)]),[]);
-	[C4,$  | Arg] -> parse_request(list_to_atom([C1,C2,C3,alpha(C4)]),Arg);
+	[] -> parse_request([C1,C2,C3], []);
+	[$ | Arg] -> parse_request([C1,C2,C3],Arg);
+	[C4] -> parse_request([C1,C2,C3,alpha(C4)],[]);
+	[C4,$  | Arg] -> parse_request([C1,C2,C3,alpha(C4)],Arg);
 	_ -> error
     end;
 parse_request(_) -> error.
 
 parse_request(Command, Args) ->
-    {ftp_driver:convert_command(list_to_atom(Command)),
+    {ftp_driver:convert_command(Command),
      Args}.
 
     
@@ -148,7 +157,7 @@ get_request(S, Buf) ->
     case split_line(Buf) of
 	more ->
 	    case gen_tcp:recv(S,0) of
-		{ok,Cs} ->
+		{ok, Cs} ->
 		    Buf1 = Buf++Cs,
 		    case split_line(Buf1) of
 			more -> get_request(S, Buf1);
@@ -160,6 +169,8 @@ get_request(S, Buf) ->
     end.
 
 %% split a line after CRLF
+split_line(Bin) when is_binary(Bin) ->
+    split_line(binary_to_list(Bin));
 split_line(Cs) ->
     split_line(Cs, []).
 

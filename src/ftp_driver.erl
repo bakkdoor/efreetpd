@@ -56,6 +56,7 @@ convert_command(FTPCommandString, Parameters) ->
 -spec convert_command(string() | atom()) -> atom() | string().
 
 convert_command(FTPCommandString) when erlang:is_list(FTPCommandString) ->
+    debug:info("in convert_command/1, command given: ~p", [FTPCommandString]),
     % filter all mappings, where the FTPCommand-Atom 
     % (first entry in each tuple in ftp_command_mappings)
     % is the same as FTPCommandString

@@ -24,7 +24,7 @@ read(_Filename) ->
     %% read settings and return them as list of tuples (key-value pairs)
     %% for now, simply return the values statically...
     [
-     {main_listen_port, 2221},
+     {main_listen_port, 2222},
      % root directory, in which all user-directories lie.
      {root_dir, "/home/bakkdoor/projekte/erlang/eFreeTPd/root_dir"},
      % users list, first part is username (as string), second is a sha encrypted binary password,
