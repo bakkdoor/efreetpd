@@ -1,43 +1,80 @@
 -module(ftp_driver).
 %-export([start/2, get_driver_pid/1, convert_command/1]).
+-include("state.hrl").
+-import(tcp, [crnl/0]).
 -compile(export_all).
 
-start(PortNr, FtpConnectionPid) ->
+% network line terminator (terminates/seperates a ftp message from another).
+% okay status flag.
+-define(CRNL, "\r\n").
+-define(R_OKAY, 200).
+
+
+start(Socket, State, FtpConnectionPid) ->
     % socket oeffnen auf port PortNr
     % und loopen
-    _Receiveloop = spawn(fun() -> receive_loop(PortNr, FtpConnectionPid) end),
-    SendLoop = spawn(fun() -> send_loop(PortNr) end),
-    FtpConnectionPid ! {send_loop_pid, SendLoop, PortNr}.
+    _Receiveloop = spawn(fun() -> receive_loop(Socket, State, FtpConnectionPid) end),
+    SendLoop = spawn(fun() -> send_loop(Socket, State) end),
+    FtpConnectionPid ! {send_loop_pid, SendLoop, Socket}.
 
-receive_loop(PortNr, FtpConnectionPid) ->
+receive_loop(Socket, State, FtpConnectionPid) ->
     % FtpConnectionPid nachrichten senden mit empfangenen befehlen usw....
     % socket abfragen und umwandeln in eigenes format
     % anschließend an FtpConnectionPid senden und wieder warten (loopen)
     
-    receive_loop(PortNr, FtpConnectionPid).
+    receive_loop(Socket, State, FtpConnectionPid).
 
 
-send_loop(PortNr) ->
+send_loop(Socket, State) ->
     receive
 	% auf nachrichten von send_loop in ftp_connection warten
 	% und in ftp-protokoll-befehle umwandeln und über PortNr an client schicken
-	{command, Command, Parameters} ->
-	    Converted = convert_command(Command, Parameters),
-	    send_to_client(PortNr, Converted),
-	    send_loop(PortNr);
+	{reply, Reply, Parameters, NewState} ->
+	    ReplyCode = reply_code(Reply),
+	    % if there is a standard reply-string, then also send it
+	    % otherwise simply send the replycode and the parameters (if there are any).
+	    % also check the Parameters
+	    % if non-empty list, join the parameters and send them as one string as well.
+	    case reply_string(ReplyCode) of
+		not_available ->
+		    case Parameters of
+			[] ->
+			    send_reply(Socket, ReplyCode);
+			List = [_|_] -> 
+			    % TODO: check, if space is correct seperator (maybe CRNL ?)
+			    ParamsString = string:join(List, " "),
+			    send_reply(Socket, ReplyCode, ParamsString)
+		    end;
+		ReplyMessage ->
+		    case Parameters of
+			[] ->
+			    send_reply(Socket, ReplyCode);
+			List = [_|_] ->
+			    % TODO: same here...
+			    ParamsString = string:join(List, " "),
+			    send_reply(Socket, ReplyCode, ParamsString ++ " " ++ ReplyMessage)
+		    end	    
+	    end,
+	    send_loop(Socket, NewState);
 	
-	{quit, PortNr} ->
-	    debug:info("FTPDriver for connection on port ~w quitting.", [PortNr]);
+	{quit, Socket, _NewState = #state{port = Port}} ->
+	    debug:info("FTPDriver for connection on port ~w quitting.", [Port]);
 
 	Unknown ->
 	    debug:info("unknown command received in ftp_driver: ~w", [Unknown]),
-	    send_loop(PortNr)
+	    send_loop(Socket, State)
     end.
 
 
-% sends an FTPMessage to a given client on port PortNr.
-send_to_client(_PortNr, _FTPMessage) ->
-    true.
+
+%% send a reply-message (network-line-terminated status code and a message)
+%% to the client (via Socket).
+send_reply(Socket, Code, Message) when is_integer(Code) ->
+    gen_tcp:send(Socket, [integer_to_list(Code)," ",Message, ?CRNL]).
+
+%% send a single standard message (reply-code only) to client.
+send_reply(Socket, Code) ->
+    gen_tcp:send(Socket, [reply_string(Code)++ ?CRNL]).
 
 
 -spec convert_command(string(), list()) -> tuple().
@@ -205,7 +242,8 @@ reply_string(532) -> "532 Need account for storing files.";
 reply_string(550) -> "550 Requested action not taken.";
 reply_string(551) -> "551 Requested action aborted: page type unkown.";
 reply_string(552) -> "552 Requested file action aborted.";
-reply_string(553) -> "553 Requested action not taken.".
+reply_string(553) -> "553 Requested action not taken.";
+reply_string(_) -> not_available.
 
 
 

@@ -31,8 +31,7 @@ read(_Filename) ->
      % represented as string of 8-bit hexadecimal integers via: utils:encrypted_password_string(PasswortString).
      {users, [{"user1", "1CFFFA2AE16528E36115ECE8B1F2601BCF74414E"},
 	      {"user2", "2AA6A8FF7FCD473D321E0146AFD9E26DF395147"},
-	      {"chris", "dasda"}]},
-     {start_port, 10000}
+	      {"chris", "dasda"}]}
     ].
 
 %% returns a specified setting-value (RequestedSetting)
