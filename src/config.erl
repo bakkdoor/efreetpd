@@ -1,6 +1,11 @@
+%% config-module.
+%% functions related to the server-configuration.
+%% for now, this is also the place to change the config-settings.
+
 -module(config).
 -export([root_dir/0, read/1, setting/1, setting/2]).
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
+
 
 %% specifies the root dir, in which all user directories are
 -spec root_dir() -> string().
@@ -29,8 +34,7 @@ read(_Filename) ->
      {root_dir, "/home/bakkdoor/projekte/erlang/eFreeTPd/root_dir"},
      % users list, first part is username (as string), second is a sha encrypted binary password,
      % represented as string of 8-bit hexadecimal integers via: utils:encrypted_password_string(PasswortString).
-     {users, [{"user1", "1CFFFA2AE16528E36115ECE8B1F2601BCF74414E"},
-	      {"user2", "2AA6A8FF7FCD473D321E0146AFD9E26DF395147"},
+     {users, [{"test", "testpw"},
 	      {"chris", "dasda"}]}
     ].
 

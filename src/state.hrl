@@ -1,8 +1,9 @@
--author({"Christopher Bertels", "bakkdoor@flasht.de"}).
-
 % ftp connection state record.
 % holds data for each connection and gets passed around
 % to keep track of the connection state of each connected client.
+
+-author({"Christopher Bertels", "bakkdoor@flasht.de"}).
+
 -record(state, 
 	{
 	  % users home dir

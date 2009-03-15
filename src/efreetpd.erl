@@ -1,12 +1,18 @@
+%% 'main'-module.
+%% contains the start function, which reads config-settings from config-file 
+%% and starts the eFreeTPd server daemon.
+
 -module(efreetpd).
 -export([start/0, stop/0]).
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
-%% 'main'-module.
-%% contains the start function, which reads config-settings from config-file 
-%% and starts the eFreeTPd server daemon.
+
 start() ->
     crypto:start(),
+
+    % add commands subdirectory to loadpath
+    code:add_patha("commands"),
+
     %% read config from configfile
     Settings = config:read("eFreeTPd.conf"),
     ListenPort = config:setting(Settings, main_listen_port),
@@ -25,4 +31,3 @@ start() ->
 
 stop() ->
     main_loop ! stop.
-%    server:stop().

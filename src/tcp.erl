@@ -1,7 +1,12 @@
-%% module for some tcp/ip related helper functions
+%% tcp-module.
+%% module for some tcp/ip related helper functions.
+
 -module(tcp).
--export([receive_binary/1, crnl/0, parse_address/1, format_address/2, get_request/2, parse_request/1]).
+-export([receive_binary/1, crnl/0, parse_address/1, format_address/2]).
+-export([get_request/2, parse_request/1, alpha/1, close_listen/1]).
+-include("state.hrl").
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
+-comment("Some code from here taken by the sample programm ftpd.erl from erlang.org by <tony@RIOJA>.").
 
 
 -spec receive_binary(port()) -> {ok, binary()} | {error, string() | atom()}.
@@ -57,11 +62,13 @@ format_address({A,B,C,D}, Port) ->
     integer_to_list(D) ++ "," ++
     integer_to_list(Port div 256) ++ "," ++
     integer_to_list(Port rem 256);
+
 format_address({N1,N2,N3,N4,N5,N6,N7,N8},Port) ->
     h4(N1) ++ "," ++ h4(N2) ++ "," ++ h4(N3) ++ "," ++ h4(N4) ++ "," ++
     h4(N5) ++ "," ++ h4(N6) ++ "," ++ h4(N7) ++ "," ++ h4(N8) ++ "," ++
 	integer_to_list(Port div 256) ++ "," ++
 	integer_to_list(Port rem 256).
+
 
 h4(N) ->
     [hx(N bsr 12),$,,hx(N bsr 8),$,,hx(N bsr 4),$,, hx(N)].
@@ -74,10 +81,9 @@ hx(N) ->
 
 
 
-%% parse a command and arguments
+%% parse a command and arguments from a given string.
 %% must be case insensitive on commands and type letters but
 %% sensitive on path/user 
-%% 
 parse_request([L1,L2,L3 | T]) ->
     C1 = alpha(L1),
     C2 = alpha(L2),
@@ -103,6 +109,8 @@ alpha(X) when X == $  -> X;
 alpha(_) -> $?.
 
 
+%% read from socket until a complete ftp-request has been read.
+%% then, simply return the request with its arguments (if any).
 get_request(S, Buf) ->
     case split_line(Buf) of
 	more ->
@@ -125,9 +133,20 @@ split_line(Cs) ->
     split_line(Cs, []).
 
 split_line([$\r,$\n|Cs], Buf) ->
+    % return {ok, RequestName, Argument} when done:
     {ok, lists:reverse(Buf), Cs};
 split_line([X|Cs], Buf) ->
+    % if not at end of line, simply continue
     split_line(Cs, [X|Buf]);
 split_line([], _) ->
     more.
 
+
+%% close listening port, if specified.
+close_listen(State) ->
+    if State#state.listen_socket == undefined ->
+	    State;
+       true ->
+	    gen_tcp:close(State#state.listen_socket),
+	    State#state { listen_socket = undefined }
+    end.

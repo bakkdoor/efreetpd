@@ -1,9 +1,11 @@
 %% Utilities module for eFreeTPd.
 %% Some helper functions etc.
+
 -module(utils).
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 -export([process_name/1, process_name/2, rpc/2, rpc/3, on_exit/2, keep_alive/2, encrypted_password_string/1]).
 -export([write_file/2, read_file/1]).
+
 
 %% returns an atom for use as a process name
 %% example: 

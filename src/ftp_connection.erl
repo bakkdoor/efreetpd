@@ -3,6 +3,7 @@
 %% Starts a ftp_driver process, that talks to the client over a socket.
 %% Also starts subprocesses for a given ftp command (e.g. uploading files, creating dirs etc.)
 %% if requested by ftp_driver process. 
+
 -module(ftp_connection).
 -export([start/2, get_connection_pid/1]).
 -include("state.hrl").
@@ -58,8 +59,8 @@ receive_loop(State) ->
 send_loop(DriverSendLoop) ->
     % wait for messages to forward to ftp_driver
     receive
-	{reply, Reply} ->
-	    case Reply of
+	Reply = {reply, Reply2} ->
+	    case Reply2 of
 		{data_stream, _} ->
 		    debug:info("sending data to client..."), % just for debugging...
 		    DriverSendLoop ! Reply,
@@ -85,6 +86,10 @@ send_loop(DriverSendLoop) ->
 		    send_loop(DriverSendLoop)
 	    end;
 	
+	NotImplemented = {reply, cmd_not_implemented, _Commandname} ->
+	    DriverSendLoop ! NotImplemented,
+	    send_loop(DriverSendLoop);
+
 	Reply = {reply, _Replyname, _Params, _State} ->
 	    DriverSendLoop ! Reply,
 	    send_loop(DriverSendLoop);
@@ -104,19 +109,6 @@ execute_command(Command, Parameters, State) ->
 
 start_driver(Socket, State, LoopPid) ->
     ftp_driver:start(Socket, State, LoopPid).
-%%    FtpDriverPid = spawn(ftp_driver, start, [Socket, State, LoopPid]),
-    
-%%     % register processes (with PortNr as part of the name)
-%%     DriverName = utils:process_name("ftp_driver_", State#state.port),
-%%     % if already registeres, unregister, then register again
-%%     % this could happen, if the ftp_driver has crashed and must be restarted.
-%%     case whereis(DriverName) of
-%% 	undefined ->
-%% 	    nothing; % not registered yet, so simply do nothing
-%% 	_OldPid ->
-%% 	    unregister(DriverName)
-%%     end,
-%%     register(DriverName, FtpDriverPid).
 
 
 %% gets called as exit handler for crashing ftp_driver processes

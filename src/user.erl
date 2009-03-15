@@ -1,5 +1,8 @@
+%% user-module.
+%% some user-related functions.
+
 -module(user).
--export([home_dir/1, check_dir/2, check_file/2, verify_login/1]).
+-export([home_dir/1, check_dir/2, check_file/2, verify_login/1, assert_logged_in/3]).
 -include("state.hrl").
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
@@ -46,3 +49,18 @@ verify_login(#state{user = User, password = Password}) ->
 	    false
 %	    ftp_driver:send_reply(Socket, not_logged_in), throw(failed)
    end.
+
+
+%% when called, SucceedFun only gets called, if verify_login(State) returns true.
+%% if not, FtpConnPid will be send a not_logged_in message, which results
+%% in the client being disconnected.
+assert_logged_in(FtpConnPid, State, SucceedFun) ->
+    case user:verify_login(State) of
+	
+	false ->
+	    FtpConnPid ! {reply, not_logged_in, [], State},
+	    exit(failed);
+
+	true ->
+	    SucceedFun()
+    end.

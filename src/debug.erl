@@ -1,3 +1,7 @@
+%% debug-module.
+%% holds some debugging related helperfunctions,
+%% mainly for i/o of info/error messages.
+
 -module(debug).
 -export([info/1, info/2, error/1, error/2]).
 
