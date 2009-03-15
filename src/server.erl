@@ -25,82 +25,62 @@
 %% 	    end
 %%     end.
 
-
+%% stops the server's main (listening) loop.
 stop() ->
-    server ! stop,
-    unregister(server).
+    server ! stop.
+%    unregister(server).
 
+%% starts the server's main (listening) loop on a given port (standard is 21 for ftp). 
 start(ListenPort) ->
     {ok, LSocket} = gen_tcp:listen(ListenPort, [binary, {active, false}, {packet, 0}]),
     debug:info("server startet on port ~p", [ListenPort]),
-    spawn(fun() -> accept_loop(LSocket) end),
-    ServerPid = spawn(fun() ->
-				   receive
-				       stop ->
-					   gen_tcp:close(LSocket)
-				   end
+    AcceptLoop = spawn(fun() -> accept_loop(LSocket) end),
+    ServerStopperPid = spawn(fun() ->
+			      put(lsocket, LSocket),
+			      receive
+				  stop ->
+				      gen_tcp:close(get(lsocket))
+			      end
 		      end),
-    register(server, ServerPid),
-    ServerPid.
+    register(server, ServerStopperPid),
+    AcceptLoop.
     
-				   
+
+%% loop for incoming connections.
+%% listens on LSocket and accepts new connections, giving each an individual port
+%% to communicate over.				   
 accept_loop(LSocket) ->				   
     case gen_tcp:accept(LSocket) of
+
 	{ok, NewSocket} -> 
 	    debug:info("new connection on socket ~p (~p)", [NewSocket, inet:peername(NewSocket)]),
 	    spawn(fun() -> accept_loop(LSocket) end),
-						%loop(NewSocket).
-	    acknowledge(NewSocket);
+	    start_connection(NewSocket);
+
 	{error, closed} ->
 	    debug:info("accept_loop failed: listening socket closed."),
 	    debug:info("stopping...");
+
 	{error, Why} ->
 	    debug:error("accept_loop failed: ~p", [Why]),
-	    debug:error("stopping...")
+	    debug:error("stopping...");
+	
+	stop ->
+	    gen_tcp:close(LSocket),
+	    debug:info("stopping server...")
     end.
 
 
-% send acknowledge packet to client.
-acknowledge(Socket) ->
-    {ok, Hostname} = inet:gethostname(),
+% starts the ftp_connection process for a given socket.
+start_connection(Socket) ->
+    % initial state
     {ok, {IP, Port}} = inet:peername(Socket),
-    debug:info("sending acknowledge message to client (# ~p:~p)", [IP, Port]),
-    send_reply(Socket, 220, Hostname ++ " eFreeTPd server v0.1 waiting."),
-    RootDir = config:setting(root_dir),
-    connection_loop(Socket, 
-		    #state{current_dir = RootDir, ip = IP, port = Port, data_port = Port - 1},
-		   []). % empty buffer
-
-
-connection_loop(Socket, State = #state{ip = IP, port = Port}, Buf) ->
-    debug:info("in connection loop..."),
-    debug:info("current state: ~p", [State]),
-    case get_request(Socket, Buf) of
-	{ok, Request, Buf1} ->
-	    case parse_request(Request) of
-		{Command, Args} ->
-		    debug:info("got request: ~p with params ~p", [Command, Args]),
-		    % call handler-function for request:
-		    %spawn(?MODULE, Command, [Args, Socket, State]),
-		    case catch apply(?MODULE, Command, [Args, Socket, State]) of
-			failed -> connection_loop(Socket, State, Buf1);
-			quit -> true;
-			St1 when is_record(St1, state) ->
-			    connection_loop(Socket, St1, Buf1)
-		    end;
-		    %connection_loop(Socket, State, Buf1);
-		error ->
-		    send_reply(Socket, 500, "syntax error: " ++ Request),
-		    connection_loop(Socket, State, Buf1)
-	    end;
-	{error, closed} ->
-	    debug:info("!! connection to ~p closed on port ~p:", [IP, Port]),
-	    true
-    end.
+    State = #state{ip = IP, port = Port},
+    debug:info("starting ftp_connection/start for client:  ~p:~p", [IP, Port]),
+    ftp_connection:start(Socket, State).
 
 user_name(Name, Socket, St) ->
-    Code = reply_code(user_name_ok),
-    send_reply(Socket, Code),
+    send_reply(Socket, user_name_ok),
     Homedir = config:setting(root_dir) ++ "/" ++ Name, 
     St#state { user = Name, 
 	       home_dir = Homedir,
@@ -110,8 +90,7 @@ password(Password, Socket, St) ->
     verify_login(Socket, St#state{password = Password}),
     %% check that we have executed user and need a password
     %% then that the password is valid
-    Code = reply_code(user_logged_in),
-    send_reply(Socket, Code, "User " ++ St#state.user ++ " logged in, proceed"),
+    send_reply(Socket, user_logged_in, "User " ++ St#state.user ++ " logged in, proceed"),
     St#state { password = Password, status = logged_in }.
 
 verify_login(Socket, #state{user = User, password = Password}) ->
@@ -123,7 +102,7 @@ verify_login(Socket, #state{user = User, password = Password}) ->
 	    true;
 	false -> 
 	    debug:info("user is not correct: ~p - ~p", [User, Password]),
-	    send_reply(Socket, reply_code(not_logged_in)), throw(failed)
+	    send_reply(Socket, not_logged_in), throw(failed)
     end.
 
 get_system_type(Args, Socket, State) ->
@@ -137,16 +116,15 @@ transfer_type(Arg, S, St) ->
 	       % 'a' -> ascii text
 	       $a -> {ascii,nonprint,8};
 	       _ ->
-		   NotImplemented = reply_code(command_not_implemented_for_param),
-		   send_reply(S, NotImplemented), throw(St)
+		   send_reply(S, command_not_implemented_for_param), throw(St)
 	   end,
-    send_reply(S,200,"new type " ++ atom_to_list(element(1,Type))),
+    send_reply(S, command_ok, "new type " ++ atom_to_list(element(1,Type))),
     St#state { transfer_type = Type }.
 
 
 print_work_dir(_Args, Socket, State = #state{current_dir = WorkDir}) ->
     assert_logged_in(Socket, State),
-    send_reply(Socket, reply_code(pathname_created), "\"" ++ abs_name(WorkDir) ++ "\""),
+    send_reply(Socket, pathname_created, "\"" ++ abs_name(WorkDir) ++ "\""),
     State.
 
 passive_mode(_Args, Socket, State) ->
@@ -156,11 +134,11 @@ passive_mode(_Args, Socket, State) ->
     case gen_tcp:listen(0, [{active,false}, binary]) of
 	{ok,ListenSock} ->
 	    {ok,{_,Port}} = inet:sockname(ListenSock),
-	    send_reply(Socket, reply_code(entering_passive_mode),"Entering Passive Mode (" ++
+	    send_reply(Socket, entering_passive_mode, "Entering Passive Mode (" ++
 		  format_address(Addr,Port) ++ ")."),
 	    St1#state { listen_socket = ListenSock };
 	{error,Err} ->
-	    send_reply(Socket, reply_code(cant_open_data_connection), erl_posix_msg:message(Err)),
+	    send_reply(Socket, cant_open_data_connection, erl_posix_msg:message(Err)),
 	    St1
     end.
 
@@ -171,7 +149,7 @@ list_files(_Arg, Socket, _State = #state{current_dir = CurrentDir}) ->
 				  gen_tcp:send(Socket, File ++ tcp:crnl())
 			  end,
 			  FileList),
-	    send_reply(Socket, reply_code(closing_data_connection));
+	    send_reply(Socket, closing_data_connection);
 	{error,Err} ->
 	    send_reply(Socket, 550, "\"" ++ CurrentDir ++ "\" " ++
 		  file:format_error(Err))
@@ -182,7 +160,7 @@ open_data_port(Args, Socket, State) ->
     assert_logged_in(Socket, State),
     St1 = close_listen(State),
     {ok,AddrPort} = parse_address(Args),
-    send_reply(Socket,200),
+    send_reply(Socket, command_ok),
     St1#state { data_port = AddrPort, listen_socket = undefined }.
 
 
@@ -195,8 +173,8 @@ cmd_not_implemented(_, Socket, State) ->
 %% check that a user has logged in and report errors
 assert_logged_in(Socket, State) when is_record(State, state) ->
     case State#state.status of
-	invalid -> send_reply(Socket, reply_code(not_logged_in)), throw(failed);
-	waiting_for_pass ->  send_reply(Socket, reply_code(user_name_ok)), throw(failed);
+	invalid -> send_reply(Socket, not_logged_in), throw(failed);
+	waiting_for_pass ->  send_reply(Socket, user_name_ok), throw(failed);
 	logged_in -> true
     end.
 

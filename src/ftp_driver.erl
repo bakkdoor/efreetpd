@@ -11,25 +11,84 @@
 
 
 start(Socket, State, FtpConnectionPid) ->
-    % socket oeffnen auf port PortNr
-    % und loopen
-    _Receiveloop = spawn(fun() -> receive_loop(Socket, State, FtpConnectionPid) end),
-    SendLoop = spawn(fun() -> send_loop(Socket, State) end),
-    FtpConnectionPid ! {send_loop_pid, SendLoop, Socket}.
+    case gen_tcp:controlling_process(Socket, self()) of
+	ok ->
+	    NewState = acknowledge(Socket, State),
+	    EmptyBuffer = [],
+    
+	    SendLoop = spawn(fun() -> send_loop(Socket, NewState, self()) end),
+	    FtpConnectionPid ! {send_loop_pid, SendLoop},
 
-receive_loop(Socket, State, FtpConnectionPid) ->
+	    receive_loop(Socket, NewState, FtpConnectionPid, EmptyBuffer);
+	Error ->
+	    debug:error("could not set controlling_process: ~p", [Error])
+    end.
+    
+
+
+%% send acknowledge packet to client.
+acknowledge(Socket, State) ->
+    {ok, Hostname} = inet:gethostname(),
+    IP = State#state.ip, 
+    Port = State#state.port,
+    debug:info("sending acknowledge message to client (# ~p:~p)", [IP, Port]),
+    send_reply(Socket, reply_code(service_ready), Hostname ++ " eFreeTPd server v0.1 waiting."),
+    RootDir = config:setting(root_dir),
+    % return new state
+    State#state{current_dir = RootDir, data_port = Port - 1}.
+
+
+receive_loop(Socket, State = #state{ip = IP, port = Port}, FTPConnPid, Buf) ->
+    
+    % if we get a state_change message, 
+    % change the state by making the recursive call with the new state.
+    % after 0.1 sec simply move on
+    receive
+	
+	{state_change, NewState} ->
+	    debug:info("--------> ftp_driver/receive_loop: got state_change: ~p", [NewState]),
+	    receive_loop(Socket, NewState, FTPConnPid, Buf);
+	
+	Other ->
+	    debug:info("ftp_driver/receive_loop: unkown message: ~p", [Other])
+
+	after 100 ->
+		move_on
+    end,
+
     % FtpConnectionPid nachrichten senden mit empfangenen befehlen usw....
     % socket abfragen und umwandeln in eigenes format
     % anschließend an FtpConnectionPid senden und wieder warten (loopen)
-    
-    receive_loop(Socket, State, FtpConnectionPid).
+    debug:info("in ftp_driver/receive_loop ..."),
+    debug:info("current state: ~p", [State]),
+    case tcp:get_request(Socket, Buf) of
+	{ok, Request, Buf1} ->
+	    case tcp:parse_request(Request) of
+		{Command, Args} ->
+		    debug:info("got request: ~p with params ~p", [Command, Args]),
+		    % spawn handler-function for request:
+		    FTPConnPid ! {command, Command, Args},
+		    receive_loop(Socket, State, FTPConnPid, Buf1);
+		error ->
+		    send_reply(Socket, syntax_error, "syntax error: " ++ Request),
+		    receive_loop(Socket, State, FTPConnPid, Buf1)
+	    end;
+	{error, closed} ->
+	    debug:info("!! connection to ~p closed on port ~p:", [IP, Port]),
+	    true
+    end.
 
 
-send_loop(Socket, State) ->
+
+send_loop(Socket, State, ReceiveLoopPid) ->
     receive
 	% auf nachrichten von send_loop in ftp_connection warten
 	% und in ftp-protokoll-befehle umwandeln und über PortNr an client schicken
 	{reply, Reply, Parameters, NewState} ->
+	    
+	    % inform ReceiveLoop of new state
+	    ReceiveLoopPid ! {state_change, NewState},
+	    
 	    ReplyCode = reply_code(Reply),
 	    % if there is a standard reply-string, then also send it
 	    % otherwise simply send the replycode and the parameters (if there are any).
@@ -55,24 +114,31 @@ send_loop(Socket, State) ->
 			    send_reply(Socket, ReplyCode, ParamsString ++ " " ++ ReplyMessage)
 		    end	    
 	    end,
-	    send_loop(Socket, NewState);
+	    send_loop(Socket, NewState, ReceiveLoopPid);
 	
 	{quit, Socket, _NewState = #state{port = Port}} ->
 	    debug:info("FTPDriver for connection on port ~w quitting.", [Port]);
 
 	Unknown ->
 	    debug:info("unknown command received in ftp_driver: ~w", [Unknown]),
-	    send_loop(Socket, State)
+	    send_loop(Socket, State, ReceiveLoopPid)
     end.
 
 
 
 %% send a reply-message (network-line-terminated status code and a message)
 %% to the client (via Socket).
+send_reply(Socket, Replyname, Message) when is_atom(Replyname) ->
+    send_reply(Socket, reply_code(Replyname), Message);
+
 send_reply(Socket, Code, Message) when is_integer(Code) ->
     gen_tcp:send(Socket, [integer_to_list(Code)," ",Message, ?CRNL]).
 
+
 %% send a single standard message (reply-code only) to client.
+send_reply(Socket, Replyname) when is_atom(Replyname) ->
+    send_reply(Socket, reply_code(Replyname));
+
 send_reply(Socket, Code) ->
     gen_tcp:send(Socket, [reply_string(Code)++ ?CRNL]).
 

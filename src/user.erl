@@ -1,5 +1,6 @@
 -module(user).
--export([home_dir/1, check_dir/2, check_file/2]).
+-export([home_dir/1, check_dir/2, check_file/2, verify_login/1]).
+-include("state.hrl").
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
 
@@ -31,3 +32,17 @@ check_dir(UserName, Dir) ->
 check_file(UserName, File) ->
     Dirname = filename:dirname(File),
     check_dir(UserName, Dirname).
+
+
+verify_login(#state{user = User, password = Password}) ->
+%%    EncryptedPassword = utils:encrypted_password_string(Password),
+    Users = config:setting(users),
+    case lists:member({User, Password}, Users) of
+	true -> 
+	    debug:info("user is correct: ~p - ~p", [User, Password]),
+	    true;
+	false -> 
+	    debug:info("user is not correct: ~p - ~p", [User, Password]),
+	    false
+%	    ftp_driver:send_reply(Socket, not_logged_in), throw(failed)
+   end.

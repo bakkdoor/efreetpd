@@ -4,16 +4,17 @@
 %% Also starts subprocesses for a given ftp command (e.g. uploading files, creating dirs etc.)
 %% if requested by ftp_driver process. 
 -module(ftp_connection).
--export([start/1, get_connection_pid/1]).
+-export([start/2, get_connection_pid/1]).
 -include("state.hrl").
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
 
-start(PortNr) ->
+start(Socket, State) ->
     % start loop & ftp_driver processes
-    LoopPid = spawn(ftp_connection, receive_loop, []),
-    register(utils:process_name(PortNr), LoopPid),
-    start_driver(PortNr, LoopPid).
+    LoopPid = spawn(fun () -> receive_loop(State) end),
+    Port = State#state.port,
+    register(utils:process_name(Port), LoopPid),
+    start_driver(Socket, State, LoopPid).
 
 
 %% main loop, waiting for messages by the ftp_driver process.
@@ -26,18 +27,23 @@ receive_loop(State) ->
 	    debug:info("connection closed on port: ~w~n", [PortNr]);
 
 	% ftp_driver has told us its send_loop process, so we start our own
-	{send_loop_pid, DriverSendLoop, PortNr} ->
-	    SendLoopPid = spawn(ftp_connection, send_loop, [DriverSendLoop]),
+	{send_loop_pid, DriverSendLoop} ->
+	    SendLoopPid = spawn(fun() -> send_loop(DriverSendLoop) end),
 	    put(send_loop_pid, SendLoopPid),
 	    receive_loop(State);
 
 	% command request to be executed
 	% start a subprocess to deal with the command
-	{command, Command, Parameters} ->
-	    execute_command(Command, Parameters, State),
+	{command, Command, Parameter} ->
+	    debug:info("executing command: ~p with args: ~p", [Command,  Parameter]),
+	    execute_command(Command, Parameter, State),
 	    receive_loop(State);
 
 	{state_change, NewState} ->
+	    receive_loop(NewState);
+
+	{reply, Reply, Parameters, NewState} ->
+	    debug:info("sending reply: ~p (~p) to client...", [Reply, Parameters]),
 	    receive_loop(NewState);
 	
 	% any other messages, we simply output and keep on going...
@@ -79,8 +85,12 @@ send_loop(DriverSendLoop) ->
 		    send_loop(DriverSendLoop)
 	    end;
 	
+	Reply = {reply, _Replyname, _Params, _State} ->
+	    DriverSendLoop ! Reply,
+	    send_loop(DriverSendLoop);
+
 	Unknown ->
-	    debug:info("error: unkown message in send_loop (# ~p): ~p~n", [self(), Unknown]),
+	    debug:error("ftp_connection/send_loop: unkown message in send_loop (# ~p): ~p~n", [self(), Unknown]),
 	    send_loop(DriverSendLoop)
     end.
 
@@ -88,24 +98,25 @@ send_loop(DriverSendLoop) ->
 % starts a new process for a given command.
 execute_command(Command, Parameters, State) ->
     SendLoopPid = get(send_loop_pid),
-    ParamsWithPid =  [SendLoopPid, State | ParamsWithState],
+    ParamsWithPid =  [SendLoopPid, State | [Parameters]],
     spawn(Command, start, ParamsWithPid).
 
 
-start_driver(PortNr, LoopPid) ->
-    FtpDriverPid = spawn(ftp_driver, start, [PortNr, LoopPid]),
+start_driver(Socket, State, LoopPid) ->
+    ftp_driver:start(Socket, State, LoopPid).
+%%    FtpDriverPid = spawn(ftp_driver, start, [Socket, State, LoopPid]),
     
-    % register processes (with PortNr as part of the name)
-    DriverName = utils:process_name("ftp_driver_", PortNr),
-    % if already registeres, unregister, then register again
-    % this could happen, if the ftp_driver has crashed and must be restarted.
-    case whereis(DriverName) of
-	undefined ->
-	    nothing; % not registered yet, so simply do nothing
-	_OldPid ->
-	    unregister(DriverName)
-    end,
-    register(DriverName, FtpDriverPid).
+%%     % register processes (with PortNr as part of the name)
+%%     DriverName = utils:process_name("ftp_driver_", State#state.port),
+%%     % if already registeres, unregister, then register again
+%%     % this could happen, if the ftp_driver has crashed and must be restarted.
+%%     case whereis(DriverName) of
+%% 	undefined ->
+%% 	    nothing; % not registered yet, so simply do nothing
+%% 	_OldPid ->
+%% 	    unregister(DriverName)
+%%     end,
+%%     register(DriverName, FtpDriverPid).
 
 
 %% gets called as exit handler for crashing ftp_driver processes
@@ -113,14 +124,15 @@ driver_receive_loop_exit_handler(Pid, ExitReason) ->
     debug:error("ftp_driver receive_loop (~p) crashed: ~p~n", [Pid, ExitReason]),
     
     case ExitReason of
-	{error, Message, PortNr} ->
-	    debug:error("~w crashed on port: ~p~nMessage: ~p~n", ["\t\t",PortNr, Message]),	    
-	    case get_connection_pid(PortNr) of
+	{error, Message, Socket, State} ->
+	    Port = State#state.port,
+	    debug:error("~w crashed on port: ~p~nMessage: ~p~n", ["\t\t",Port, Message]),	    
+	    case get_connection_pid(Port) of
 		undefined ->
-		    io:format("error: ftp_connection process seems to be dead on port: ~p~n", [PortNr]),
+		    io:format("error: ftp_connection process seems to be dead on port: ~p~n", [Port]),
 		    exit("something went very wront here.");
 		LoopPid ->
-		    start_driver(PortNr, LoopPid)
+		    start_driver(Socket, State, LoopPid)
 	    end;
 	
 	Unknown ->

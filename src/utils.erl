@@ -23,7 +23,7 @@ process_name(Number) ->
 
 process_name(Prefix, Number) when is_list(Prefix) and is_integer(Number) ->
     NumberStr = erlang:integer_to_list(Number),
-    erlang:list_to_atom(Prefix, NumberStr).
+    erlang:list_to_atom(Prefix ++ NumberStr).
 
 
 %% starts a remote procedure call (rpc) to a given process (Pid) with a given request.
