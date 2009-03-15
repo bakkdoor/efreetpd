@@ -27,18 +27,21 @@
 
 
 stop() ->
-    server ! stop.
+    server ! stop,
+    unregister(server).
 
 start(ListenPort) ->
     {ok, LSocket} = gen_tcp:listen(ListenPort, [binary, {active, false}, {packet, 0}]),
     debug:info("server startet on port ~p", [ListenPort]),
     spawn(fun() -> accept_loop(LSocket) end),
-    register(server, spawn(fun() ->
+    ServerPid = spawn(fun() ->
 				   receive
 				       stop ->
 					   gen_tcp:close(LSocket)
 				   end
-			   end)).
+		      end),
+    register(server, ServerPid),
+    ServerPid.
     
 				   
 accept_loop(LSocket) ->				   

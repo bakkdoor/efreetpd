@@ -12,15 +12,15 @@ start() ->
     ListenPort = config:setting(Settings, main_listen_port),
     debug:info("starting eFreeTPd on port ~p", [ListenPort]),
     debug:info("all settings: ~p", [Settings]),
-    MainPid = server:start(ListenPort),
+    _MainPid = server:start(ListenPort).
     
     % error-handler for main process
-    utils:on_exit(MainPid, 
-		  fun(_Pid, Why) ->
-			  debug:error("main process stopped: ~p", [Why]),
-			  debug:error("trying to restart main process...~n"),
-			  efreetpd:start()
-		  end).
+%%    utils:on_exit(MainPid, 
+%% 		  fun(_Pid, Why) ->
+%% 			  debug:error("main process stopped: ~p", [Why]),
+%% 			  debug:error("trying to restart main process...~n"),
+%% 			  efreetpd:start()
+%% 		  end).
 
 stop() ->
     server:stop().
