@@ -15,8 +15,10 @@ start(Socket, State, FtpConnectionPid) ->
 	ok ->
 	    NewState = acknowledge(Socket, State),
 	    EmptyBuffer = [],
-    
-	    SendLoop = spawn(fun() -> send_loop(Socket, NewState, self()) end),
+	    
+	    ReceivePid = self(),
+
+	    SendLoop = spawn(fun() -> send_loop(Socket, NewState, ReceivePid) end),
 	    FtpConnectionPid ! {send_loop_pid, SendLoop},
 
 	    receive_loop(Socket, NewState, FtpConnectionPid, EmptyBuffer);
@@ -59,15 +61,15 @@ receive_loop(Socket, State = #state{ip = IP, port = Port}, FTPConnPid, Buf) ->
     % FtpConnectionPid nachrichten senden mit empfangenen befehlen usw....
     % socket abfragen und umwandeln in eigenes format
     % anschließend an FtpConnectionPid senden und wieder warten (loopen)
-    debug:info("in ftp_driver/receive_loop ..."),
-    debug:info("current state: ~p", [State]),
+%    debug:info("in ftp_driver/receive_loop ..."),
+%    debug:info("current state: ~p", [State]),
     case tcp:get_request(Socket, Buf) of
 	{ok, Request, Buf1} ->
 	    case tcp:parse_request(Request) of
 		{Command, Args} ->
 		    debug:info("got request: ~p with params ~p", [Command, Args]),
 		    % spawn handler-function for request:
-		    FTPConnPid ! {command, Command, Args},
+		    FTPConnPid ! {command, Command, Args, State},
 		    receive_loop(Socket, State, FTPConnPid, Buf1);
 		error ->
 		    send_reply(Socket, syntax_error, "syntax error: " ++ Request),

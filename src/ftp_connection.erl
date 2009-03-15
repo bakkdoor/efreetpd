@@ -34,10 +34,10 @@ receive_loop(State) ->
 
 	% command request to be executed
 	% start a subprocess to deal with the command
-	{command, Command, Parameter} ->
+	{command, Command, Parameter, CmdState} ->
 	    debug:info("executing command: ~p with args: ~p", [Command,  Parameter]),
-	    execute_command(Command, Parameter, State),
-	    receive_loop(State);
+	    execute_command(Command, Parameter, CmdState),
+	    receive_loop(CmdState);
 
 	{state_change, NewState} ->
 	    receive_loop(NewState);
