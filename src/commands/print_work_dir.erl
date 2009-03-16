@@ -12,11 +12,4 @@ start(FtpConnPid, State, _Arg) ->
 
 send_reply(FtpConnPid, State) ->
     WorkDir = State#state.current_dir,
-    FtpConnPid ! {reply, pathname_created, ["\"" ++ abs_name(WorkDir) ++ "\""], State}.
-				  
-
-%%
-%% We sometime need a simulated root, then call abs_name
-%%
-abs_name(Name) ->
-    filename:join("/", Name).
+    FtpConnPid ! {reply, pathname_created, ["\"" ++ utils:abs_name(WorkDir) ++ "\""], State}.				  

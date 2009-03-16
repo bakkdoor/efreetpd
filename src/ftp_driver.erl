@@ -5,12 +5,13 @@
 %% at the same time, reply-messages ordered to be sent back to the client
 %% are received from the ftp_connection process, converted to an appropriate
 %% ftp-protocol conform binary message and sent over the network.
-
+ 
 -module(ftp_driver).
 %-export([start/2, get_driver_pid/1, convert_command/1]).
 -compile(export_all).
 -include("state.hrl").
 -import(tcp, [crnl/0]).
+-author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 
 % network line terminator (terminates/seperates a ftp message from another).
 -define(CRNL, "\r\n").
@@ -46,6 +47,8 @@ acknowledge(Socket, State) ->
     State#state{current_dir = RootDir, data_port = Port - 1}.
 
 
+%% loop for incoming ftp-requests for each connected client.
+%% messages get parsed, converted and forwarded to the ftp_connection process.
 receive_loop(Socket, State = #state{ip = IP, port = Port}, FTPConnPid, Buf) ->
     
     % if we get a state_change message, 
@@ -64,22 +67,26 @@ receive_loop(Socket, State = #state{ip = IP, port = Port}, FTPConnPid, Buf) ->
 		move_on
     end,
 
+    %    debug:info("in ftp_driver/receive_loop ..."),
+    %    debug:info("current state: ~p", [State]),
+
     % process received requests and send as command-messages to FtpConnectionPid,
     % then loop again.
-
-%    debug:info("in ftp_driver/receive_loop ..."),
-%    debug:info("current state: ~p", [State]),
-
     case tcp:get_request(Socket, Buf) of
 	{ok, Request, Buf1} ->
 	    case tcp:parse_request(Request) of
 		{Command, Args} ->
-		    process_command(FTPConnPid, Socket, State, Command, Args),
-		    receive_loop(Socket,  State, FTPConnPid, Buf1);
+		    NewState2 = process_command(FTPConnPid, Socket, State, Command, Args),
+		    debug:info("process_command lieferte: ~p", [NewState2]),
+		    receive_loop(Socket, NewState2, FTPConnPid, Buf1);
+		
 		error ->
 		    send_reply(Socket, syntax_error, "syntax error: " ++ Request),
 		    receive_loop(Socket, State, FTPConnPid, Buf1)
 	    end;
+	
+	% if the connection socket is closed,
+	% simply return from this loop.
 	{error, closed} ->
 	    debug:info("!! connection to ~p closed on port ~p:", [IP, Port]),
 	    true
@@ -89,22 +96,27 @@ receive_loop(Socket, State = #state{ip = IP, port = Port}, FTPConnPid, Buf) ->
 %% if no special command given, simply forward to FTPConnPid,
 %% if special, deal with it here. 
 process_command(FTPConnPid, Socket, State, Command, Args) ->
+    debug:info("got request: ~p with params ~p", [Command, Args]),
     case Command of
 	% passive_mode needs to be dealt here 
 	% some low-level operations are required, which we want to take care of
 	% only within this module.
 	passive_mode ->
-	    passive_mode(Socket, State);
+	    NewState = passive_mode(Socket, State),
+	    FTPConnPid ! {state_change, NewState},
+	    NewState;
 
 	open_data_port ->
-	    open_data_port(Socket, State, Args);
+	    NewState = open_data_port(Socket, State, Args),
+	    FTPConnPid ! {state_change, NewState},
+	    NewState;
 	
 	% any other command simply gets forwarded outside
 	% to the ftp_connection process.
 	_Other ->
-	    debug:info("got request: ~p with params ~p", [Command, Args]),
 	    % spawn handler-function for request:
-	    FTPConnPid ! {command, Command, Args, State}
+	    FTPConnPid ! {command, Command, Args, State},
+	    _NewState = State
     end.
 
 
@@ -145,6 +157,7 @@ send_loop(Socket, State, ReceiveLoopPid) ->
 			    ParamsString = string:join(List, " "),
 			    send_reply(Socket, ReplyCode, ParamsString)
 		    end;
+		
 		ReplyMessage ->
 		    case Parameters of
 			[] ->
@@ -156,6 +169,18 @@ send_loop(Socket, State, ReceiveLoopPid) ->
 		    end	    
 	    end,
 	    send_loop(Socket, NewState, ReceiveLoopPid);
+	
+	% data_connection request:
+	% open data_connection process and send its pid back to the requesting process.
+	{request, data_connection, FromPid, NewState} ->
+	    {DataConnPid, NewState2} = open_data_connection(Socket, NewState),
+	    
+	    % inform ReceiveLoop of new state
+	    ReceiveLoopPid ! {state_change, NewState2},
+	    
+	    FromPid ! {request_reply, data_connection, DataConnPid, NewState},
+	    send_loop(Socket, NewState2, ReceiveLoopPid);
+
 	
 	{quit, Socket, _NewState = #state{port = Port}} ->
 	    debug:info("FTPDriver for connection on port ~w quitting.", [Port]);
@@ -255,27 +280,78 @@ get_driver_pid(PortNr) ->
     whereis(ProcName).
 
 
+open_data_connection(Socket, State) ->
+    {DataSocket, NewState} = open_data_connection_socket(Socket, State),
+    DataConnPid = spawn(data_connection, start, [DataSocket, NewState]),
+    {DataConnPid, NewState}.
+
+open_data_connection_socket(Socket, State) ->
+    send_reply(Socket, file_status_ok),
+
+    if State#state.listen_socket =/= undefined ->
+	    
+	    case gen_tcp:accept(State#state.listen_socket) of
+		{ok,S} ->
+		    gen_tcp:close(State#state.listen_socket),
+		    {S, State#state{ listen_socket = undefined }};
+		{error,Err} ->
+		    open_data_err(Socket,Err)
+	    end;
+       true ->
+	    Addr = State#state.ip,
+	    Port = State#state.data_port,
+	    case gen_tcp:connect(Addr,Port,[{active,false}, binary]) of
+		{ok,S} ->
+		    {S,State};
+		{error,Err} ->
+		    open_data_err(Socket,Err)
+	    end
+    end.
+
+open_data_err(Socket, Error) ->
+    send_reply(Socket, 
+	       service_not_available, 
+	       "Can't open data connection " ++ inet:format_error(Error)),
+    throw(failed).
+
+
+
 
 %%%%%%%%%%%%%%%%%% special commands %%%%%%%%%%%%%%%%%%
 
+%% handles passive mode command.
+%% opens a new data-socket and sends the port number & host information
+%% to the client for it to initiate a connection on that new port.
 passive_mode(Socket, State) ->
     user:assert_logged_in(Socket, State,
-			 fun() ->
-				 St1 = tcp:close_listen(State),
-				 {ok,{Addr,_}} = inet:sockname(Socket),
-				 case gen_tcp:listen(0, [{active,false}, binary]) of
-				     {ok,ListenSock} ->
-					 {ok,{_,Port}} = inet:sockname(ListenSock),
-					 send_reply(Socket, entering_passive_mode, "Entering Passive Mode (" ++
-						    tcp:format_address(Addr,Port) ++ ")."),
-					 St1#state { listen_socket = ListenSock };
-				     {error,Err} ->
-					 send_reply(Socket, cant_open_data_connection, erl_posix_msg:message(Err)),
-					 St1
-				 end
-			 end).
+			  fun() ->
+				  handle_passive_mode(Socket, State)
+			  end).
+
+% helper function for passive_mode/2 simply for clarity 
+% and to prevent deeply nested code.
+handle_passive_mode(Socket, State) ->
+    St1 = tcp:close_listen(State),
+    {ok,{Addr,_}} = inet:sockname(Socket),
+    
+    % open a new listening-socket on a random port
+    case gen_tcp:listen(0, [{active,false}, binary]) of
+	{ok,ListenSock} ->
+	    {ok,{_,Port}} = inet:sockname(ListenSock),
+	    send_reply(Socket, 
+		       entering_passive_mode, 
+		       "Entering Passive Mode (" ++ tcp:format_address(Addr,Port) ++ ")."),
+	    St1#state { listen_socket = ListenSock };
+	
+	{error,Err} ->
+	    send_reply(Socket, 
+		       cant_open_data_connection, 
+		       erl_posix_msg:message(Err)),
+	    St1
+    end.
 
 
+%%
 open_data_port(Socket, State, Args) ->
     user:assert_logged_in(Socket, State,
 			  fun() ->

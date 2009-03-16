@@ -94,6 +94,10 @@ send_loop(DriverSendLoop) ->
 	    DriverSendLoop ! Reply,
 	    send_loop(DriverSendLoop);
 
+	Request = {request, data_connection, _FromPid, _State} ->
+	    debug:info("ftp_connection/send_loop: requesting data_connection process"),
+	    DriverSendLoop ! Request;
+
 	Unknown ->
 	    debug:error("ftp_connection/send_loop: unkown message in send_loop (# ~p): ~p~n", [self(), Unknown]),
 	    send_loop(DriverSendLoop)

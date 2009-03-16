@@ -5,6 +5,7 @@
 -author({"Christopher Bertels", "bakkdoor@flasht.de"}).
 -export([process_name/1, process_name/2, rpc/2, rpc/3, on_exit/2, keep_alive/2, encrypted_password_string/1]).
 -export([write_file/2, read_file/1]).
+-export([rel_name/2, rel_path/1, abs_name/1]).
 
 
 %% returns an atom for use as a process name
@@ -109,3 +110,42 @@ write_file(Filename, Bin) ->
 read_file(Filename) ->
     {ok, Binary} = file:read_file(Filename),
     Binary.
+
+
+%%
+%% Compose file/directory names
+%%
+rel_name(Name, Wd) ->
+    case filename:pathtype(Name) of
+	relative ->
+	    rel_path(filename:join(Wd, Name));
+	absolute ->
+	    rel_path(Name);
+	volumerelative ->
+	    rel_path(filename:join(Wd,Name))
+    end.
+%%
+%% We sometime need a simulated root, then call abs_name
+%%
+abs_name(Name) ->
+    filename:join("/", Name).
+
+%%
+%% rel_path returns a relative path i.e remove
+%% and root or volume relative start components
+%%
+rel_path(Path) ->
+    rel_path(filename:split(Path),[]).
+
+%% remove absolute or volume relative stuff
+rel_path([Root|Path], RP) ->
+    case filename:pathtype(Root) of
+	relative -> rpath(Path, [Root|RP]);
+	_ -> rpath(Path, RP)
+    end.
+
+rpath([".."|P], [_|RP]) ->  rpath(P, RP);
+rpath(["."|P], RP) -> rpath(P, RP);
+rpath([F|P], RP) -> rpath(P, [F|RP]);
+rpath([],[]) -> "";
+rpath([], RP) -> filename:join(lists:reverse(RP)).
